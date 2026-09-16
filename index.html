@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Strata</title>
+<meta name="description" content="Spaced repetition for subjects you're still building up.">
+<meta name="theme-color" content="#0E1618">
+<!-- Manifest and icons are generated at runtime, further down. Nothing external is loaded. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+:root{
+  --bg:#E6E9E8; --surface:#F4F6F5; --sunk:#DCE1E0;
+  --ink:#16232A; --muted:#5C6B71; --line:#D2D8D7;
+  --signal:#A4680B; --danger:#9B3B2E;
+  --s1:#C0C9C7; --s2:#94B0AE; --s3:#5F8D93; --s4:#336A78; --s5:#1A4553;
+  --onfill:#F4F6F5;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Charter,Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1618; --surface:#162124; --sunk:#0A1113;
+    --ink:#E4EBEA; --muted:#93A5A7; --line:#243133;
+    --signal:#E0A63A; --danger:#E08878;
+    --s1:#37474B; --s2:#527276; --s3:#6FA0A2; --s4:#8FC7C2; --s5:#BCE6DA;
+    --onfill:#0E1618;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1618; --surface:#162124; --sunk:#0A1113;
+  --ink:#E4EBEA; --muted:#93A5A7; --line:#243133;
+  --signal:#E0A63A; --danger:#E08878;
+  --s1:#37474B; --s2:#527276; --s3:#6FA0A2; --s4:#8FC7C2; --s5:#BCE6DA;
+  --onfill:#0E1618;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:3px}
+
+.wrap{max-width:560px;margin:0 auto;padding:0 20px 120px}
+
+/* ---- top bar ---- */
+.bar{
+  display:flex;align-items:baseline;gap:18px;
+  padding:calc(18px + env(safe-area-inset-top)) 0 4px;
+}
+.bar h1{
+  font-family:var(--serif);font-weight:400;font-size:19px;
+  letter-spacing:.01em;margin:0;flex:1;
+}
+.bar button{font-size:14px;color:var(--muted);padding:4px 0}
+.bar button[aria-current="true"]{color:var(--ink);box-shadow:inset 0 -1px 0 var(--ink)}
+
+/* ---- headline ---- */
+.headline{font-family:var(--serif);font-weight:400;font-size:40px;line-height:1.1;margin:26px 0 6px;letter-spacing:-.015em}
+.sub{color:var(--muted);font-size:14px;margin:0 0 26px}
+
+/* ---- topic card ---- */
+.card{
+  display:flex;gap:16px;width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:14px 16px;margin-bottom:10px;align-items:stretch;
+}
+.card:active{background:var(--sunk)}
+.card .body{flex:1;min-width:0}
+.card h3{font-family:var(--serif);font-weight:400;font-size:19px;margin:0 0 3px;line-height:1.25}
+.meta{font-size:13px;color:var(--muted)}
+.note{
+  font-size:14px;color:var(--muted);margin-top:8px;
+  border-left:2px solid var(--line);padding-left:10px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.due .meta strong{color:var(--signal);font-weight:600}
+
+/* ---- strata stack ---- */
+.stack{display:flex;flex-direction:column-reverse;justify-content:flex-start;gap:2px;width:34px;flex:none;padding-top:4px}
+.stack i{display:block;height:5px;border-radius:1px;background:var(--s1)}
+.l1{width:22%;background:var(--s1)!important}
+.l2{width:40%;background:var(--s2)!important}
+.l3{width:60%;background:var(--s3)!important}
+.l4{width:80%;background:var(--s4)!important}
+.l5{width:100%;background:var(--s5)!important}
+.stack i.fresh{animation:lay .45s ease-out}
+@keyframes lay{from{transform:translateY(7px) scaleX(.2);opacity:0;transform-origin:left}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){.stack i.fresh{animation:none}}
+
+/* ---- subject groups ---- */
+.grouphead{
+  display:flex;align-items:baseline;gap:8px;
+  margin:28px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line);
+}
+.grouphead h4{
+  font-family:var(--serif);font-weight:400;font-size:15px;margin:0;
+  letter-spacing:.01em;color:var(--ink);
+}
+.grouphead button.gname{color:var(--ink);box-shadow:inset 0 -1px 0 transparent}
+.grouphead .count{color:var(--muted);font-size:13px}
+.group:first-of-type .grouphead{margin-top:8px}
+
+/* ---- subject chips (add screen) ---- */
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:2px}
+.chip{
+  padding:7px 13px;border:1px solid var(--line);border-radius:999px;
+  font-size:14px;background:var(--surface);color:var(--ink);
+}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* ---- empty ---- */
+.empty{border:1px dashed var(--line);border-radius:10px;padding:30px 22px;text-align:center}
+.empty p{margin:0;color:var(--muted);font-size:15px}
+
+/* ---- level picker ---- */
+.levels{display:flex;flex-direction:column;gap:6px;margin:10px 0 24px}
+.lvl{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+  padding:11px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);
+}
+.lvl .gauge{width:44px;height:6px;border-radius:1px;background:var(--sunk);flex:none;overflow:hidden}
+.lvl .gauge span{display:block;height:100%}
+.lvl b{font-weight:500;font-size:15px}
+.lvl em{font-style:normal;color:var(--muted);font-size:13px;display:block}
+.lvl[aria-pressed="true"]{border-color:var(--ink);background:var(--sunk)}
+
+/* ---- forms ---- */
+label.f{display:block;font-size:14px;color:var(--muted);margin:22px 0 7px}
+input[type=text],input[type=date],textarea{
+  width:100%;background:var(--surface);border:1px solid var(--line);
+  border-radius:8px;padding:11px 13px;font-size:16px;
+}
+textarea{resize:vertical;min-height:84px;line-height:1.5}
+input[type=text]:focus,input[type=date]:focus,textarea:focus{outline:2px solid var(--signal);outline-offset:-1px;border-color:transparent}
+
+.primary{
+  display:block;width:100%;background:var(--ink);color:var(--bg);
+  border-radius:8px;padding:14px;font-size:16px;font-weight:500;margin-top:24px;
+}
+.primary:active{opacity:.85}
+.primary[disabled]{opacity:.35}
+.forecast{text-align:center;font-size:13px;color:var(--muted);margin-top:10px;min-height:20px}
+
+.linkbtn{font-size:14px;color:var(--muted);padding:8px 0;box-shadow:inset 0 -1px 0 var(--line)}
+.linkbtn.warn{color:var(--danger);box-shadow:none}
+
+/* ---- pass view ---- */
+.back{font-size:14px;color:var(--muted);padding:6px 0;margin-top:8px}
+.quote{
+  font-family:var(--serif);font-size:17px;line-height:1.55;
+  border-left:3px solid var(--s3);padding:2px 0 2px 14px;margin:8px 0 0;color:var(--ink);
+}
+.section-lead{font-size:15px;margin:26px 0 0;font-weight:500}
+
+/* ---- history ---- */
+.hist{list-style:none;margin:14px 0 0;padding:0}
+.hist li{display:flex;gap:14px;padding:12px 0;border-top:1px solid var(--line)}
+.hist .when{font-size:13px;color:var(--muted);width:82px;flex:none}
+.hist .what{font-size:14px;flex:1}
+.hist .what span{color:var(--muted);display:block;margin-top:3px}
+
+/* ---- add button ---- */
+.fab{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(22px + env(safe-area-inset-bottom));
+  background:var(--ink);color:var(--bg);border-radius:999px;
+  padding:13px 26px;font-size:15px;font-weight:500;
+  box-shadow:0 6px 22px rgba(0,0,0,.22);z-index:5;
+}
+.rowbtns{display:flex;justify-content:space-between;align-items:center;margin-top:34px;gap:16px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="bar">
+    <h1>Strata</h1>
+    <button id="tab-today" onclick="go('today')">Today</button>
+    <button id="tab-all" onclick="go('all')">All topics</button>
+  </nav>
+  <main id="view" aria-live="polite"></main>
+</div>
+<button class="fab" id="fab" onclick="go('add')">Add a topic</button>
+
+<script>
+/* ========== storage ========== */
+const KEY='strata.v1';
+let db={topics:[]};
+function load(){
+  try{const r=localStorage.getItem(KEY); if(r) db=JSON.parse(r);}catch(e){}
+  if(!db||!Array.isArray(db.topics)) db={topics:[]};
+  if(!Array.isArray(db.subjects)) db.subjects=[];
+}
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){
+    alert('This browser blocked local storage, so passes will not be kept. Check private-browsing settings.');
+  }
+}
+
+/* ========== scheduling ========== */
+const DAY=86400000;
+const LEVELS=[
+  {n:1,name:'Blank',   hint:'it was new again',                    pct:10},
+  {n:2,name:'Vague',   hint:'recognised it, could not explain it',  pct:25},
+  {n:3,name:'Getting it',hint:'got the shape, missed the detail',   pct:50},
+  {n:4,name:'Solid',   hint:'explained it, one or two gaps',        pct:78},
+  {n:5,name:'Fluent',  hint:'could teach it from memory',           pct:95}
+];
+const FIRST={1:1,2:2,3:3,4:5,5:8};
+
+function schedule(topic,level){
+  let ease = topic.ease||2.4, prev = topic.interval||0, next;
+  if(!prev){ next=FIRST[level]; }
+  else if(level===1){ next=1; }
+  else if(level===2){ next=Math.max(2,prev*1.2); }
+  else if(level===3){ next=prev*ease*0.75; }
+  else if(level===4){ next=prev*ease; }
+  else { next=prev*ease*1.35; }
+  ease += ({1:-0.3,2:-0.15,3:-0.02,4:0.05,5:0.12})[level];
+  ease = Math.min(3.2,Math.max(1.4,ease));
+  next = Math.min(365,Math.max(1,Math.round(next)));
+  return {interval:next,ease:ease};
+}
+function preview(topic,level){ return schedule(topic,level).interval; }
+
+/* ========== helpers ========== */
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime();};
+const daysUntil=t=>Math.round((t-today())/DAY);
+const dateToTs=str=>{const [y,m,d]=str.split('-').map(Number);const dt=new Date(y,m-1,d);dt.setHours(0,0,0,0);return dt.getTime();};
+const tsToDateStr=ts=>{const d=new Date(ts),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;};
+function forecastText(due){
+  const d=daysUntil(due);
+  if(d<0) return `${-d} day${d===-1?'':'s'} overdue already`;
+  if(d===0) return 'ready today';
+  if(d===1) return 'back tomorrow';
+  return `back in ${d} days`;
+}
+function dueText(t){
+  const d=daysUntil(t.due);
+  if(d<0) return `<strong>${-d} day${d===-1?'':'s'} overdue</strong>`;
+  if(d===0) return '<strong>ready now</strong>';
+  if(d===1) return 'back tomorrow';
+  return `back in ${d} days`;
+}
+function ago(ts){
+  const d=Math.round((today()-new Date(ts).setHours(0,0,0,0))/DAY);
+  if(d<=0) return 'today'; if(d===1) return 'yesterday';
+  if(d<30) return d+' days ago';
+  if(d<365) return Math.round(d/30)+' months ago';
+  return Math.round(d/365)+' years ago';
+}
+const stack=(passes,freshLast)=>`<div class="stack" aria-hidden="true">${
+  passes.slice(-14).map((p,i,a)=>`<i class="l${p.level}${freshLast&&i===a.length-1?' fresh':''}"></i>`).join('')
+}</div>`;
+const dueList=()=>db.topics.filter(t=>t.due<=today()).sort((a,b)=>a.due-b.due);
+const allList=()=>db.topics.slice().sort((a,b)=>a.due-b.due);
+const byId=id=>db.topics.find(t=>t.id===id);
+
+/* ---- subjects ---- */
+const subjById=id=>db.subjects.find(s=>s.id===id);
+const subjName=t=>{const s=subjById(t.subjectId); return s?s.name:'';};
+function ensureSubject(name){
+  name=(name||'').trim();
+  if(!name) return null;
+  const hit=db.subjects.find(s=>s.name.toLowerCase()===name.toLowerCase());
+  if(hit) return hit.id;
+  const s={id:'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name};
+  db.subjects.push(s); return s.id;
+}
+function purgeOrphanSubjects(){
+  const used=new Set(db.topics.map(t=>t.subjectId).filter(Boolean));
+  db.subjects=db.subjects.filter(s=>used.has(s.id));
+}
+function groupBySubject(list){
+  const map=new Map(); const unsorted=[];
+  list.forEach(t=>{
+    if(t.subjectId && subjById(t.subjectId)){
+      if(!map.has(t.subjectId)) map.set(t.subjectId,[]);
+      map.get(t.subjectId).push(t);
+    } else unsorted.push(t);
+  });
+  const groups=[...map.entries()]
+    .map(([id,items])=>({id,name:subjById(id).name,items}))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  if(unsorted.length) groups.push({id:null,name:'Unsorted',items:unsorted});
+  return groups;
+}
+function renameSubject(id){
+  const s=subjById(id); if(!s) return;
+  const v=prompt('Subject name',s.name);
+  if(v&&v.trim()){ s.name=v.trim(); save(); render(); }
+}
+
+/* ========== views ========== */
+const view=document.getElementById('view');
+let state={screen:'today',id:null,level:null,justLogged:null};
+
+function go(screen,id){
+  state={screen,id:id||null,level:null,justLogged:state.justLogged,lastSubject:state.lastSubject};
+  render(); window.scrollTo(0,0);
+}
+function render(){
+  document.getElementById('tab-today').setAttribute('aria-current',state.screen==='today');
+  document.getElementById('tab-all').setAttribute('aria-current',state.screen==='all');
+  document.getElementById('fab').classList.toggle('hidden',state.screen!=='today'&&state.screen!=='all');
+  ({today:vToday,all:vAll,add:vAdd,pass:vPass,detail:vDetail}[state.screen]||vToday)();
+  state.justLogged=null;
+}
+
+function vToday(){
+  const due=dueList(), n=due.length;
+  const upcoming=db.topics.filter(t=>t.due>today()).sort((a,b)=>a.due-b.due)[0];
+  let head,sub;
+  if(!db.topics.length){ head='Nothing here yet'; sub='Add the first subject you are working through.'; }
+  else if(!n){
+    head='All settled';
+    sub = upcoming ? `Next pass ${daysUntil(upcoming.due)===1?'tomorrow':'in '+daysUntil(upcoming.due)+' days'}: ${esc(upcoming.title)}.` : '';
+  } else {
+    head = n===1 ? 'One topic is ready' : `${n} topics are ready`;
+    sub = 'A pass means: re-read or re-explain it, then say how far you got.';
+  }
+  view.innerHTML = `
+    <h2 class="headline">${head}</h2>
+    <p class="sub">${sub}</p>
+    ${ n ? groupBySubject(due).map(groupHTML).join('')
+        : (db.topics.length ? '' : `<div class="empty"><p>Study something at whatever depth you manage — a quarter of it is enough — then add it here. It comes back before it fades.</p></div>`) }
+  `;
+}
+function groupHTML(g){
+  return `<div class="group">
+    <div class="grouphead">
+      ${g.id ? `<button class="gname" onclick="renameSubject('${g.id}')">${esc(g.name)}</button>`
+             : `<h4>${esc(g.name)}</h4>`}
+      <span class="count">${g.items.length}</span>
+    </div>
+    ${g.items.map(cardHTML).join('')}
+  </div>`;
+}
+function cardHTML(t){
+  const last=t.passes[t.passes.length-1];
+  const fresh = state.justLogged===t.id;
+  return `<button class="card ${t.due<=today()?'due':''}" onclick="go('pass','${t.id}')">
+    ${stack(t.passes,fresh)}
+    <div class="body">
+      <h3>${esc(t.title)}</h3>
+      <div class="meta">${t.passes.length} pass${t.passes.length===1?'':'es'} · ${LEVELS[last.level-1].name.toLowerCase()} · ${dueText(t)}</div>
+      ${last.note?`<div class="note">${esc(last.note)}</div>`:''}
+    </div>
+  </button>`;
+}
+
+function vAll(){
+  if(!db.topics.length){ vToday(); return; }
+  view.innerHTML = `
+    <h2 class="headline">${db.topics.length} topic${db.topics.length===1?'':'s'}</h2>
+    <p class="sub">Tap any topic to log a pass early, or to read its history. Tap a subject name to rename it everywhere.</p>
+    ${groupBySubject(allList()).map(groupHTML).join('')}
+    <div class="rowbtns">
+      <button class="linkbtn" onclick="exportData()">Save a backup file</button>
+      <button class="linkbtn" onclick="importData()">Restore from file</button>
+    </div>`;
+}
+
+function vAdd(){
+  view.innerHTML = `
+    <button class="back" onclick="go('today')">Back</button>
+    <h2 class="headline">New topic</h2>
+    <p class="sub">Name the thing you just studied. Logging where you got to now sets the first return date.</p>
+    <label class="f" for="title">Topic</label>
+    <input type="text" id="title" placeholder="Countercurrent multiplication" autocomplete="off">
+    <label class="f" for="studied">When did you study this?</label>
+    <input type="date" id="studied" value="${tsToDateStr(today())}" max="${tsToDateStr(today())}">
+    <label class="f" for="subject">Subject</label>
+    <input type="text" id="subject" list="subjectlist" placeholder="e.g. Renal physiology" autocomplete="off" value="${esc(state.lastSubject||'')}">
+    <datalist id="subjectlist">${db.subjects.map(s=>`<option value="${esc(s.name)}">`).join('')}</datalist>
+    ${db.subjects.length?`<div class="chips" style="margin-top:9px">${db.subjects.map(s=>
+      `<button type="button" class="chip" onclick="pickSubjectChip('${s.id}')">${esc(s.name)}</button>`).join('')}</div>`:''}
+    <label class="f" for="source">Where it lives (optional)</label>
+    <input type="text" id="source" placeholder="Guyton ch. 28, p. 340" autocomplete="off">
+    <p class="section-lead">How far did you get this time?</p>
+    ${levelsHTML(null)}
+    <label class="f" for="note">What is still unclear? (optional)</label>
+    <textarea id="note" placeholder="The gradient made sense but I lost the loop of Henle geometry."></textarea>
+    <button class="primary" id="go" onclick="createTopic()" disabled>Add topic</button>
+    <p class="forecast" id="fc"></p>`;
+  document.getElementById('title').addEventListener('input',refreshAdd);
+  document.getElementById('studied').addEventListener('change',updateForecast);
+}
+function pickSubjectChip(id){
+  const s=subjById(id); if(!s) return;
+  document.getElementById('subject').value=s.name;
+  document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed', c.textContent===s.name));
+}
+function refreshAdd(){
+  const ok = document.getElementById('title').value.trim() && state.level;
+  document.getElementById('go').disabled=!ok;
+  updateForecast();
+}
+function updateForecast(){
+  const fc=document.getElementById('fc');
+  if(!fc) return;
+  if(!state.level){ fc.textContent=''; return; }
+  const dateEl=document.getElementById('studied');
+  const studyTs = dateEl ? dateToTs(dateEl.value) : today();
+  const t = state.screen==='pass' ? byId(state.id) : {};
+  const s = schedule(t||{}, state.level);
+  const due = studyTs + s.interval*DAY;
+  fc.textContent = `${s.interval} day${s.interval===1?'':'s'} after the study date — ${forecastText(due)}`;
+}
+function createTopic(){
+  const title=document.getElementById('title').value.trim();
+  if(!title||!state.level) return;
+  const studyTs=dateToTs(document.getElementById('studied').value);
+  const subjectName=document.getElementById('subject').value.trim();
+  const subjectId=ensureSubject(subjectName);
+  const s=schedule({},state.level);
+  const t={
+    id:'t'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    title, subjectId, source:document.getElementById('source').value.trim(),
+    ease:s.ease, interval:s.interval, due:studyTs+s.interval*DAY,
+    passes:[{at:studyTs,level:state.level,note:document.getElementById('note').value.trim()}]
+  };
+  db.topics.push(t); save();
+  state.justLogged=t.id; state.lastSubject=subjectName;
+  go('today');
+}
+
+function vPass(){
+  const t=byId(state.id); if(!t){go('today');return;}
+  const last=t.passes[t.passes.length-1];
+  view.innerHTML = `
+    <button class="back" onclick="go('${dueList().some(x=>x.id===t.id)?'today':'all'}')">Back</button>
+    <h2 class="headline">${esc(t.title)}</h2>
+    <p class="sub">Pass ${t.passes.length+1} · last seen ${ago(last.at)}${t.source?' · '+esc(t.source):''}</p>
+    ${last.note?`<p class="section-lead">Last time you wrote</p><blockquote class="quote">${esc(last.note)}</blockquote>`:''}
+    <label class="f" for="studied">When did you study this?</label>
+    <input type="date" id="studied" value="${tsToDateStr(today())}" max="${tsToDateStr(today())}">
+    <p class="section-lead">Go over it now. How far did you get?</p>
+    ${levelsHTML(t)}
+    <label class="f" for="note">What is still unclear? (optional)</label>
+    <textarea id="note" placeholder="Leave a note for the next pass."></textarea>
+    <button class="primary" id="go" onclick="logPass()" disabled>Log this pass</button>
+    <p class="forecast" id="fc"></p>
+    <div class="rowbtns">
+      <button class="linkbtn" onclick="go('detail','${t.id}')">See all ${t.passes.length} passes</button>
+    </div>`;
+  document.getElementById('studied').addEventListener('change',updateForecast);
+}
+function logPass(){
+  const t=byId(state.id); if(!t||!state.level) return;
+  const studyTs=dateToTs(document.getElementById('studied').value);
+  const s=schedule(t,state.level);
+  t.passes.push({at:studyTs,level:state.level,note:document.getElementById('note').value.trim()});
+  t.ease=s.ease; t.interval=s.interval; t.due=studyTs+s.interval*DAY;
+  save(); state.justLogged=t.id; go('today');
+}
+
+function levelsHTML(topic){
+  return `<div class="levels" role="group">${LEVELS.map(l=>`
+    <button class="lvl" aria-pressed="false" data-l="${l.n}" onclick="pick(${l.n})">
+      <span class="gauge"><span style="width:${l.pct}%;background:var(--s${l.n})"></span></span>
+      <span><b>${l.name}</b><em>${l.hint}</em></span>
+    </button>`).join('')}</div>`;
+}
+function pick(n){
+  state.level=n;
+  document.querySelectorAll('.lvl').forEach(b=>b.setAttribute('aria-pressed',b.dataset.l==n));
+  updateForecast();
+  const g=document.getElementById('go');
+  if(g) g.disabled = state.screen==='add' ? !document.getElementById('title').value.trim() : false;
+}
+
+function vDetail(){
+  const t=byId(state.id); if(!t){go('all');return;}
+  view.innerHTML = `
+    <button class="back" onclick="go('all')">Back</button>
+    <h2 class="headline">${esc(t.title)}</h2>
+    <p class="sub">${subjName(t)?esc(subjName(t))+' · ':''}${t.source?esc(t.source)+' · ':''}${dueText(t)}</p>
+    <ul class="hist">${t.passes.slice().reverse().map((p,i,a)=>`
+      <li>
+        <span class="when">Pass ${a.length-i}<br>${ago(p.at)}</span>
+        <span class="what">${LEVELS[p.level-1].name}${p.note?`<span>${esc(p.note)}</span>`:''}</span>
+      </li>`).join('')}</ul>
+    <button class="primary" onclick="go('pass','${t.id}')">Log a pass now</button>
+    <div class="rowbtns">
+      <button class="linkbtn" onclick="renameTopic('${t.id}')">Rename</button>
+      <button class="linkbtn" onclick="changeSubject('${t.id}')">Change subject</button>
+      <button class="linkbtn warn" onclick="removeTopic('${t.id}')">Delete topic</button>
+    </div>`;
+}
+function changeSubject(id){
+  const t=byId(id);
+  const v=prompt('Subject (existing or new; leave blank for Unsorted)', subjName(t));
+  if(v===null) return;
+  t.subjectId=ensureSubject(v);
+  purgeOrphanSubjects(); save(); render();
+}
+function renameTopic(id){
+  const t=byId(id); const v=prompt('Topic name',t.title);
+  if(v&&v.trim()){ t.title=v.trim(); save(); render(); }
+}
+function removeTopic(id){
+  const t=byId(id);
+  if(confirm(`Delete "${t.title}" and its ${t.passes.length} passes? This cannot be undone.`)){
+    db.topics=db.topics.filter(x=>x.id!==id); purgeOrphanSubjects(); save(); go('all');
+  }
+}
+
+/* ========== backup ========== */
+function exportData(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='strata-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+function importData(){
+  const i=document.createElement('input'); i.type='file'; i.accept='application/json';
+  i.onchange=()=>{
+    const f=i.files[0]; if(!f) return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const d=JSON.parse(r.result);
+        if(!d||!Array.isArray(d.topics)) throw 0;
+        if(confirm(`Replace what is here with ${d.topics.length} topics from this file?`)){
+          db=d; save(); go('all');
+        }
+      }catch(e){ alert('That file is not a Strata backup.'); }
+    };
+    r.readAsText(f);
+  };
+  i.click();
+}
+
+/* ========== boot ========== */
+load(); render();
+
+/* ========== icons + manifest, built here so the file stays standalone ==========
+   The icon is the strata stack itself: five bars widening as understanding grows. */
+function drawIcon(size,padRatio){
+  const c=document.createElement('canvas'); c.width=c.height=size;
+  const x=c.getContext('2d');
+  x.fillStyle='#0E1618'; x.fillRect(0,0,size,size);
+  const pad=size*padRatio, inner=size-2*pad, gap=inner*0.055, h=(inner-gap*4)/5;
+  const ramp=['#BCE6DA','#8FC7C2','#6FA0A2','#527276','#37474B'];
+  const w=[1,0.80,0.62,0.46,0.30];
+  for(let i=0;i<5;i++){
+    const y=pad+i*(h+gap), bw=inner*w[i];
+    x.fillStyle=ramp[i];
+    x.beginPath();
+    if(x.roundRect) x.roundRect(pad,y,bw,h,h*0.18); else x.rect(pad,y,bw,h);
+    x.fill();
+  }
+  return c.toDataURL('image/png');
+}
+try{
+  const i192=drawIcon(192,0.20), i512=drawIcon(512,0.20), iMask=drawIcon(512,0.28);
+  const add=(rel,href)=>{const l=document.createElement('link');l.rel=rel;l.href=href;document.head.appendChild(l);};
+  add('icon',i192);
+  add('apple-touch-icon',i192);
+  const base=location.href.replace(/[^/]*$/,'');
+  const manifest={
+    name:'Strata — spaced passes', short_name:'Strata',
+    description:'Spaced repetition for subjects you build up a pass at a time.',
+    start_url:location.href, scope:base,
+    display:'standalone', orientation:'portrait',
+    background_color:'#0E1618', theme_color:'#0E1618',
+    icons:[
+      {src:i192,sizes:'192x192',type:'image/png',purpose:'any'},
+      {src:i512,sizes:'512x512',type:'image/png',purpose:'any'},
+      {src:iMask,sizes:'512x512',type:'image/png',purpose:'maskable'}
+    ]
+  };
+  add('manifest',URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'})));
+}catch(e){}
+</script>
+</body>
+</html>
